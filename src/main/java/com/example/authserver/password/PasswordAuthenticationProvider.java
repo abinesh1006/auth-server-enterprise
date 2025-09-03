@@ -133,17 +133,17 @@ public class PasswordAuthenticationProvider implements org.springframework.secur
             logger.info("=== SAVING AUTHORIZATION ===");
             logger.info("Tenant context before saving authorization: {}", TenantContext.get());
             
-            OAuth2Authorization authorization = OAuth2Authorization.withRegisteredClient(client)
+            OAuth2Authorization.Builder authorizationBuilder = OAuth2Authorization.withRegisteredClient(client)
                     .principalName(userAuth.getName())
                     .authorizationGrantType(new AuthorizationGrantType(PasswordGrantType.GRANT_TYPE))
                     .authorizedScopes(authorizedScopes)
                     .token(access);
             
             if (refresh != null) {
-                authorization = authorization.refreshToken(refresh);
+                authorizationBuilder = authorizationBuilder.refreshToken(refresh);
             }
             
-            authorization = authorization.build();
+            OAuth2Authorization authorization = authorizationBuilder.build();
             authorizationService.save(authorization);
             
             logger.info("Authorization saved successfully");

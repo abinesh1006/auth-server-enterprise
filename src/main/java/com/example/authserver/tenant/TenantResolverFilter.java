@@ -43,7 +43,7 @@ public class TenantResolverFilter extends OncePerRequestFilter {
             logger.warn("Creating default tenant context since no tenants exist");
             
             // Set a default tenant context when no tenants exist
-            TenantContext.set(new TenantContext.TenantInfo("default", "default", host, false));
+            TenantContext.set(new TenantContext.TenantInfo(1l, "default", host, false));
             logger.info("Set default tenant context: {}", TenantContext.get());
         } else {
             logger.info("Looking up tenant by domain: {}", host);
@@ -57,7 +57,7 @@ public class TenantResolverFilter extends OncePerRequestFilter {
                 logger.info("MFA Enabled: {}", tenant.getIsMfaEnabled());
                 
                 TenantContext.set(new TenantContext.TenantInfo(
-                    tenant.getId(), 
+                    tenant.getId(),  // This is already Long from the entity
                     tenant.getTenantKey(), 
                     tenant.getDomain(), 
                     Boolean.TRUE.equals(tenant.getIsMfaEnabled())
@@ -80,7 +80,7 @@ public class TenantResolverFilter extends OncePerRequestFilter {
                 
                 // Set a fallback tenant context
                 logger.info("Setting fallback default tenant context");
-                TenantContext.set(new TenantContext.TenantInfo("default", "default", host, false));
+                TenantContext.set(new TenantContext.TenantInfo(2l, "default", host, false));
                 logger.info("Fallback tenant context set: {}", TenantContext.get());
             }
         }

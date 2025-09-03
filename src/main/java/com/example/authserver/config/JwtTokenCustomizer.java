@@ -112,7 +112,6 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
                 logger.info("User found in database: {}", user.getUsername());
                 logger.info("User ID: {}", user.getId());
                 logger.info("User email: {}", user.getEmail());
-                logger.info("User tenant: {}", user.getTenantId());
                 
                 claims.claim("user_id", user.getId().toString());
                 
@@ -120,10 +119,10 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
                     claims.claim("email", user.getEmail());
                 }
                 
-                // Add tenant info from user if available
-                if (user.getTenantId() != null) {
-                    claims.claim("user_tenant", user.getTenantId());
-                    logger.info("Added user tenant to claims: {}", user.getTenantId());
+                // Add tenant info from context (not from user entity since it doesn't have tenantId)
+                if (tenant != null) {
+                    claims.claim("user_tenant", tenant);
+                    logger.info("Added current tenant to claims: {}", tenant);
                 }
                 
                 logger.info("Successfully added user details to JWT for user: {}", username);
