@@ -67,15 +67,24 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
                 // Try to get user details from UserDetails if available to avoid additional DB query
                 if (principal instanceof org.springframework.security.authentication.UsernamePasswordAuthenticationToken) {
                     var authToken = (org.springframework.security.authentication.UsernamePasswordAuthenticationToken) principal;
-                    if (authToken.getDetails() instanceof org.springframework.security.core.userdetails.UserDetails) {
-                        // UserDetails is available, try to extract additional info if needed
-                        addUserDetailsFromPrincipal(claims, authToken, tenantInfo, correlationId);
+                    
+                    // Check if the principal contains our EnhancedUserDetails
+                    Object userPrincipal = authToken.getPrincipal();
+                    if (userPrincipal instanceof DatabaseUserDetailsService.EnhancedUserDetails) {
+                        // Use cached user details - no database query needed!
+                        addUserDetailsFromEnhancedUserDetails(claims, 
+                            (DatabaseUserDetailsService.EnhancedUserDetails) userPrincipal, 
+                            tenantInfo, correlationId);
                     } else {
-                        // Fallback to database lookup (this should be rare)
+                        // Fallback to database lookup
+                        logger.debug("Principal is not EnhancedUserDetails, falling back to database [principalType={}, correlationId={}]", 
+                                   userPrincipal.getClass().getSimpleName(), correlationId);
                         addUserDetailsFromDatabase(claims, username, tenantInfo, correlationId);
                     }
                 } else {
                     // Fallback to database lookup
+                    logger.debug("Principal is not UsernamePasswordAuthenticationToken, falling back to database [principalType={}, correlationId={}]", 
+                               principal.getClass().getSimpleName(), correlationId);
                     addUserDetailsFromDatabase(claims, username, tenantInfo, correlationId);
                 }
                 
@@ -95,39 +104,28 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
         }
     }
     
-    private void addUserDetailsFromPrincipal(JwtClaimsSet.Builder claims, 
-                                           org.springframework.security.authentication.UsernamePasswordAuthenticationToken authToken,
+    private void addUserDetailsFromEnhancedUserDetails(JwtClaimsSet.Builder claims, 
+                                           DatabaseUserDetailsService.EnhancedUserDetails enhancedUser,
                                            TenantContext.TenantInfo tenantInfo, 
                                            String correlationId) {
-        logger.debug("Using cached user details from authentication token [correlationId={}]", correlationId);
+        logger.debug("Adding user details from EnhancedUserDetails [correlationId={}]", correlationId);
         
-        // Try to get enhanced user details from the authentication token
-        Object principal = authToken.getPrincipal();
-        if (principal instanceof DatabaseUserDetailsService.EnhancedUserDetails) {
-            DatabaseUserDetailsService.EnhancedUserDetails enhancedUser = 
-                (DatabaseUserDetailsService.EnhancedUserDetails) principal;
-            
-            // Add user details from cached UserDetails (no database query needed!)
-            claims.claim("user_id", enhancedUser.getUserId().toString());
-            claims.claim("preferred_username", enhancedUser.getUsername());
-            
-            if (enhancedUser.getEmail() != null) {
-                claims.claim("email", enhancedUser.getEmail());
-            }
-            
-            if (tenantInfo != null) {
-                claims.claim("user_tenant", tenantInfo.key());
-            }
-            
-            logger.debug("User details added from cached UserDetails [userId={}, email={}, correlationId={}]", 
-                        enhancedUser.getUserId(), 
-                        enhancedUser.getEmail() != null ? "present" : "null", 
-                        correlationId);
-        } else {
-            // Fallback to database lookup if enhanced UserDetails not available
-            logger.debug("Enhanced UserDetails not available, falling back to database lookup [correlationId={}]", correlationId);
-            addUserDetailsFromDatabase(claims, authToken.getName(), tenantInfo, correlationId);
+        // Add user details from cached UserDetails (no database query needed!)
+        claims.claim("user_id", enhancedUser.getUserId().toString());
+        claims.claim("preferred_username", enhancedUser.getUsername());
+        
+        if (enhancedUser.getEmail() != null) {
+            claims.claim("email", enhancedUser.getEmail());
         }
+        
+        if (tenantInfo != null) {
+            claims.claim("user_tenant", tenantInfo.key());
+        }
+        
+        logger.debug("SUCCESS: User details added from EnhancedUserDetails [userId={}, email={}, correlationId={}]", 
+                    enhancedUser.getUserId(), 
+                    enhancedUser.getEmail() != null ? "present" : "null", 
+                    correlationId);
     }
     
     private void addUserDetailsFromDatabase(JwtClaimsSet.Builder claims, String username, 

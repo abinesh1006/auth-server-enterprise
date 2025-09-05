@@ -3,6 +3,8 @@ package com.example.authserver.client;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
@@ -23,6 +25,7 @@ public class DbRegisteredClientRepository implements RegisteredClientRepository 
 
     @Override
     @Transactional
+    @CacheEvict(value = "clients", key = "#registeredClient.clientId")
     public void save(RegisteredClient registeredClient) {
         // Find existing or create new
         ClientEntity entity = repository.findByClientId(registeredClient.getClientId())
@@ -67,13 +70,15 @@ public class DbRegisteredClientRepository implements RegisteredClientRepository 
     }
 
     @Override
+    @Cacheable(value = "clients", key = "#id")
     public RegisteredClient findById(String id) {
-        return repository.findById(UUID.fromString(id)).map(this::toRegisteredClient).orElse(null);
+        return repository.findByIdWithRelationships(UUID.fromString(id)).map(this::toRegisteredClient).orElse(null);
     }
 
     @Override
+    @Cacheable(value = "clients", key = "#clientId")
     public RegisteredClient findByClientId(String clientId) {
-        return repository.findByClientId(clientId).map(this::toRegisteredClient).orElse(null);
+        return repository.findByClientIdWithRelationships(clientId).map(this::toRegisteredClient).orElse(null);
     }
 
     private RegisteredClient toRegisteredClient(ClientEntity e) {
@@ -100,5 +105,11 @@ public class DbRegisteredClientRepository implements RegisteredClientRepository 
         e.getScopes().forEach(s -> b.scope(s.getScope()));
 
         return b.build();
+    }
+    
+    // Add cache eviction for bulk operations if you have them
+    @CacheEvict(value = "clients", allEntries = true)
+    public void evictAllClients() {
+        // Method to clear entire cache when needed
     }
 }
