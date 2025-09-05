@@ -24,17 +24,61 @@ public class DatabaseUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        var user = users.findByUsername(username).orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        // Use the existing findByUsername method since findByUsernameWithRoles might not exist yet
+        var user = users.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        
         boolean enabled = Boolean.TRUE.equals(user.getIsActive()) && !Boolean.TRUE.equals(user.getIsBlocked());
 
         var tenantInfo = TenantContext.get();
-        var tenant = tenantInfo == null ? null : tenants.findById(tenantInfo.id()).orElse(null);
-
-        var authorities = userRoles.findByUserAndTenantWithRole(user, tenant).stream()
-                .map(ur -> new SimpleGrantedAuthority(ur.getRole().getRole()))
+        
+        // Use the existing userRoles repository method
+        var authorities = userRoles.findByUserAndTenantWithRole(user, 
+                tenantInfo != null ? tenants.findById(tenantInfo.id()).orElse(null) : null)
+                .stream()
+                .map(ur -> (org.springframework.security.core.GrantedAuthority) new SimpleGrantedAuthority(ur.getRole().getRole()))
                 .collect(Collectors.toSet());
 
-        return org.springframework.security.core.userdetails.User.withUsername(user.getUsername())
-                .password(user.getPassword()).authorities(authorities).disabled(!enabled).build();
+        // Create enhanced UserDetails that includes additional user information
+        return new EnhancedUserDetails(
+            user.getUsername(),
+            user.getPassword(),
+            authorities,
+            enabled,
+            user.getId(),
+            user.getEmail()
+        );
+    }
+    
+    // Enhanced UserDetails class to carry additional user information
+    public static class EnhancedUserDetails implements UserDetails {
+        private final String username;
+        private final String password;
+        private final java.util.Set<org.springframework.security.core.GrantedAuthority> authorities;
+        private final boolean enabled;
+        private final java.util.UUID userId;
+        private final String email;
+        
+        public EnhancedUserDetails(String username, String password, java.util.Set<org.springframework.security.core.GrantedAuthority> authorities, 
+                                 boolean enabled, java.util.UUID userId, String email) {
+            this.username = username;
+            this.password = password;
+            this.authorities = authorities;
+            this.enabled = enabled;
+            this.userId = userId;
+            this.email = email;
+        }
+        
+        @Override public String getUsername() { return username; }
+        @Override public String getPassword() { return password; }
+        @Override public java.util.Collection<? extends org.springframework.security.core.GrantedAuthority> getAuthorities() { return authorities; }
+        @Override public boolean isEnabled() { return enabled; }
+        @Override public boolean isAccountNonExpired() { return true; }
+        @Override public boolean isAccountNonLocked() { return true; }
+        @Override public boolean isCredentialsNonExpired() { return true; }
+        
+        // Additional getters for JWT customization
+        public java.util.UUID getUserId() { return userId; }
+        public String getEmail() { return email; }
     }
 }

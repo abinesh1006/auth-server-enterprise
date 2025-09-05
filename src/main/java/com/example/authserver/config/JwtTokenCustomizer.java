@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.server.authorization.token.JwtEncodin
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.stereotype.Component;
 
+import com.example.authserver.security.DatabaseUserDetailsService;
 import com.example.authserver.tenant.TenantContext;
 import com.example.authserver.user.UserEntity;
 import com.example.authserver.user.UserRepository;
@@ -62,7 +63,21 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
             // Add user-specific information
             if (username != null) {
                 claims.claim("preferred_username", username);
-                addUserDetails(claims, username, tenantInfo != null ? tenantInfo.toString() : null);
+                
+                // Try to get user details from UserDetails if available to avoid additional DB query
+                if (principal instanceof org.springframework.security.authentication.UsernamePasswordAuthenticationToken) {
+                    var authToken = (org.springframework.security.authentication.UsernamePasswordAuthenticationToken) principal;
+                    if (authToken.getDetails() instanceof org.springframework.security.core.userdetails.UserDetails) {
+                        // UserDetails is available, try to extract additional info if needed
+                        addUserDetailsFromPrincipal(claims, authToken, tenantInfo, correlationId);
+                    } else {
+                        // Fallback to database lookup (this should be rare)
+                        addUserDetailsFromDatabase(claims, username, tenantInfo, correlationId);
+                    }
+                } else {
+                    // Fallback to database lookup
+                    addUserDetailsFromDatabase(claims, username, tenantInfo, correlationId);
+                }
                 
                 // For ID tokens, add additional user info
                 if (context.getTokenType() != null && 
@@ -80,8 +95,44 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
         }
     }
     
-    private void addUserDetails(JwtClaimsSet.Builder claims, String username, String tenant) {
-        logger.debug("Adding user details to JWT [username={}]", username);
+    private void addUserDetailsFromPrincipal(JwtClaimsSet.Builder claims, 
+                                           org.springframework.security.authentication.UsernamePasswordAuthenticationToken authToken,
+                                           TenantContext.TenantInfo tenantInfo, 
+                                           String correlationId) {
+        logger.debug("Using cached user details from authentication token [correlationId={}]", correlationId);
+        
+        // Try to get enhanced user details from the authentication token
+        Object principal = authToken.getPrincipal();
+        if (principal instanceof DatabaseUserDetailsService.EnhancedUserDetails) {
+            DatabaseUserDetailsService.EnhancedUserDetails enhancedUser = 
+                (DatabaseUserDetailsService.EnhancedUserDetails) principal;
+            
+            // Add user details from cached UserDetails (no database query needed!)
+            claims.claim("user_id", enhancedUser.getUserId().toString());
+            claims.claim("preferred_username", enhancedUser.getUsername());
+            
+            if (enhancedUser.getEmail() != null) {
+                claims.claim("email", enhancedUser.getEmail());
+            }
+            
+            if (tenantInfo != null) {
+                claims.claim("user_tenant", tenantInfo.key());
+            }
+            
+            logger.debug("User details added from cached UserDetails [userId={}, email={}, correlationId={}]", 
+                        enhancedUser.getUserId(), 
+                        enhancedUser.getEmail() != null ? "present" : "null", 
+                        correlationId);
+        } else {
+            // Fallback to database lookup if enhanced UserDetails not available
+            logger.debug("Enhanced UserDetails not available, falling back to database lookup [correlationId={}]", correlationId);
+            addUserDetailsFromDatabase(claims, authToken.getName(), tenantInfo, correlationId);
+        }
+    }
+    
+    private void addUserDetailsFromDatabase(JwtClaimsSet.Builder claims, String username, 
+                                          TenantContext.TenantInfo tenantInfo, String correlationId) {
+        logger.debug("Loading user details from database [username={}, correlationId={}]", username, correlationId);
         
         try {
             UserEntity user = userRepository.findByUsername(username).orElse(null);
@@ -93,18 +144,18 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
                     claims.claim("email", user.getEmail());
                 }
                 
-                if (tenant != null) {
-                    claims.claim("user_tenant", tenant);
+                if (tenantInfo != null) {
+                    claims.claim("user_tenant", tenantInfo.key());
                 }
                 
-                logger.debug("User details added to JWT [userId={}, email={}]", 
-                           user.getId(), user.getEmail() != null ? "present" : "null");
+                logger.debug("User details added to JWT [userId={}, email={}, correlationId={}]", 
+                           user.getId(), user.getEmail() != null ? "present" : "null", correlationId);
             } else {
-                logger.warn("User not found for JWT customization [username={}]", username);
+                logger.warn("User not found for JWT customization [username={}, correlationId={}]", username, correlationId);
             }
         } catch (Exception e) {
-            logger.error("Failed to add user details to JWT [username={}, error={}]", 
-                        username, e.getMessage());
+            logger.error("Failed to add user details to JWT [username={}, correlationId={}, error={}]", 
+                        username, correlationId, e.getMessage());
         }
     }
 }

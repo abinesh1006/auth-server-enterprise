@@ -6,7 +6,11 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,8 +24,15 @@ import com.nimbusds.jose.util.Base64URL;
 
 @Service
 public class JwkService implements JWKSource<SecurityContext> {
+    
+    private static final Logger logger = LoggerFactory.getLogger(JwkService.class);
     private final JwkRepository repo;
-
+    
+    // In-memory cache for JWK keys
+    private volatile JWKSet cachedJwkSet;
+    private volatile long lastCacheTime = 0;
+    private static final long CACHE_TTL = 300_000; // 5 minutes cache TTL
+    
     public JwkService(JwkRepository repo) { 
         this.repo = repo; 
     }
@@ -65,19 +76,49 @@ public class JwkService implements JWKSource<SecurityContext> {
     }
 
     @Override
-    public List<JWK> get(final JWKSelector jwkSelector, final SecurityContext context) {
-        try {
-            ensureKey();
-            List<JWK> all = repo.findByActiveTrue().stream()
-                .map(this::entityToJwk)
-                .toList();
-            return jwkSelector.select(new JWKSet(all));
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to load JWK keys", e);
+    public List<JWK> get(JWKSelector jwkSelector, SecurityContext context) {
+        JWKSet jwkSet = getCachedJwkSet();
+        return jwkSelector.select(jwkSet);
+    }
+    
+    private JWKSet getCachedJwkSet() {
+        long currentTime = System.currentTimeMillis();
+        
+        // Check if cache is valid
+        if (cachedJwkSet != null && (currentTime - lastCacheTime) < CACHE_TTL) {
+            logger.debug("Returning cached JWK set");
+            return cachedJwkSet;
+        }
+        
+        // Cache miss or expired - reload from database
+        synchronized (this) {
+            // Double-check locking
+            if (cachedJwkSet != null && (currentTime - lastCacheTime) < CACHE_TTL) {
+                return cachedJwkSet;
+            }
+            
+            logger.debug("Loading JWK keys from database");
+            List<JwkEntity> activeKeys = repo.findByActiveTrue();
+            List<JWK> jwks = activeKeys.stream().map(this::convertToJwk).toList();
+            
+            cachedJwkSet = new JWKSet(jwks);
+            lastCacheTime = currentTime;
+            
+            logger.info("JWK cache refreshed with {} keys", jwks.size());
+            return cachedJwkSet;
         }
     }
     
-    private JWK entityToJwk(JwkEntity entity) {
+    // Method to clear cache when keys are updated
+    public void clearCache() {
+        synchronized (this) {
+            cachedJwkSet = null;
+            lastCacheTime = 0;
+            logger.info("JWK cache cleared");
+        }
+    }
+    
+    private JWK convertToJwk(JwkEntity entity) {
         try {
             if ("RSA".equals(entity.getKty())) {
                 RSAKey.Builder builder = new RSAKey.Builder(
