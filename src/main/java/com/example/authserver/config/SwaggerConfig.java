@@ -7,6 +7,8 @@ import org.springframework.context.annotation.Configuration;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.parameters.Parameter;
+import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.security.OAuthFlow;
 import io.swagger.v3.oas.models.security.OAuthFlows;
 import io.swagger.v3.oas.models.security.Scopes;
@@ -57,7 +59,28 @@ public class SwaggerConfig {
                                     .addString("write", "Write access")
                                     .addString("user:create", "Create users")
                                     .addString("user:lock", "Lock users")
-                                    .addString("user:unlock", "Unlock users"))))))
+                                    .addString("user:unlock", "Unlock users")))))
+                .addParameters("X-Tenant-ID", 
+                    new Parameter()
+                        .in("header")
+                        .name("X-Tenant-ID")
+                        .description("Tenant identifier for multi-tenant operations")
+                        .required(false)
+                        .schema(new StringSchema()))
+                .addParameters("X-Correlation-ID",
+                    new Parameter()
+                        .in("header")
+                        .name("X-Correlation-ID")
+                        .description("Correlation ID for request tracing")
+                        .required(false)
+                        .schema(new StringSchema()))
+                .addParameters("X-Request-ID",
+                    new Parameter()
+                        .in("header")
+                        .name("X-Request-ID")
+                        .description("Unique request identifier")
+                        .required(false)
+                        .schema(new StringSchema())))
             .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
             .addSecurityItem(new SecurityRequirement().addList("oauth2"));
     }

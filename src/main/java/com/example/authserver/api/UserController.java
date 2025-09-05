@@ -3,6 +3,7 @@ package com.example.authserver.api;
 import com.example.authserver.api.dto.UserDto;
 import com.example.authserver.user.UserEntity;
 import com.example.authserver.user.UserService;
+import com.example.authserver.config.CommonHeaders;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name="Users")
 @SecurityRequirement(name = "bearerAuth")
 @SecurityRequirement(name = "oauth2")
+@CommonHeaders
 public class UserController {
     private final UserService userService;
     public UserController(UserService userService) { this.userService = userService; }
