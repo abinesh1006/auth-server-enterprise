@@ -30,6 +30,35 @@ public class TenantResolverFilter extends OncePerRequestFilter {
     }
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+        
+        // More detailed debugging
+        logger.info("TenantResolverFilter: Checking path [{}]", path);
+        
+        boolean shouldSkip = path.startsWith("/.well-known/") ||           // OIDC Discovery endpoints
+               path.startsWith("/oauth2/") ||                 // OAuth2 endpoints (authorize, token, jwks, etc.)
+               path.startsWith("/userinfo") ||               // OIDC UserInfo endpoint
+               path.startsWith("/actuator/") ||               // Actuator endpoints
+               path.startsWith("/swagger-ui/") ||             // Swagger UI
+               path.startsWith("/v3/api-docs") ||             // OpenAPI docs
+               path.equals("/favicon.ico") ||                 // Favicon
+               path.startsWith("/webjars/") ||                // Static resources
+               path.startsWith("/css/") ||                    // CSS files
+               path.startsWith("/js/") ||                     // JS files
+               path.startsWith("/images/");                   // Image files
+        
+        // Add debugging to see if filter is being skipped
+        if (shouldSkip) {
+            logger.info("TenantResolverFilter: SKIPPING path [{}]", path);
+        } else {
+            logger.info("TenantResolverFilter: PROCESSING path [{}]", path);
+        }
+        
+        return shouldSkip;
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         

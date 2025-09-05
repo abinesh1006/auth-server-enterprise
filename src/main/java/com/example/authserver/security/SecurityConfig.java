@@ -60,10 +60,15 @@ public class SecurityConfig {
                                                OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator,
                                                MfaService mfaService) throws Exception {
 
+        // Apply OAuth2 Authorization Server default security first
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
         
+        // Configure OAuth2 Authorization Server specific settings
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
-            .oidc(Customizer.withDefaults())
+            .oidc(oidc -> oidc
+                .providerConfigurationEndpoint(Customizer.withDefaults())
+                .userInfoEndpoint(Customizer.withDefaults())
+            )
             .clientAuthentication(clientAuth -> clientAuth
                 .authenticationConverter(new org.springframework.security.oauth2.server.authorization.web.authentication.ClientSecretPostAuthenticationConverter())
                 .authenticationConverter(new org.springframework.security.oauth2.server.authorization.web.authentication.ClientSecretBasicAuthenticationConverter())
@@ -73,8 +78,8 @@ public class SecurityConfig {
                 .authenticationProvider(new PasswordAuthenticationProvider(authenticationManager, authorizationService, tokenGenerator, mfaService))
             );
 
+        // Configure OAuth2 resource server and other settings
         http.oauth2ResourceServer(rs -> rs.jwt(Customizer.withDefaults()))
-            .addFilterBefore(tenantFilter, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
             .formLogin(Customizer.withDefaults());
 
         return http.build();
