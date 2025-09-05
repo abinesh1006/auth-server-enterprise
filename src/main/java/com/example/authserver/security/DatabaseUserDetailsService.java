@@ -24,22 +24,36 @@ public class DatabaseUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        // Use the existing findByUsername method since findByUsernameWithRoles might not exist yet
+        var tenantInfo = TenantContext.get();
+        
+        // Load user first
         var user = users.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
         
         boolean enabled = Boolean.TRUE.equals(user.getIsActive()) && !Boolean.TRUE.equals(user.getIsBlocked());
 
-        var tenantInfo = TenantContext.get();
+        if (tenantInfo == null) {
+            // No tenant context - return user with no roles
+            return new EnhancedUserDetails(
+                user.getUsername(),
+                user.getPassword(),
+                java.util.Set.of(),
+                enabled,
+                user.getId(),
+                user.getEmail()
+            );
+        }
         
-        // Use the existing userRoles repository method
-        var authorities = userRoles.findByUserAndTenantWithRole(user, 
-                tenantInfo != null ? tenants.findById(tenantInfo.id()).orElse(null) : null)
+        // Create tenant entity with just the ID since tenant is already cached in TenantResolverFilter
+        // This avoids the database query for tenant lookup
+        var tenant = createTenantEntity(tenantInfo.id());
+        
+        // Load roles with optimized query (already uses JOIN FETCH for role data)
+        var authorities = userRoles.findByUserAndTenantWithRole(user, tenant)
                 .stream()
                 .map(ur -> (org.springframework.security.core.GrantedAuthority) new SimpleGrantedAuthority(ur.getRole().getRole()))
                 .collect(Collectors.toSet());
 
-        // Create enhanced UserDetails that includes additional user information
         return new EnhancedUserDetails(
             user.getUsername(),
             user.getPassword(),
@@ -48,6 +62,12 @@ public class DatabaseUserDetailsService implements UserDetailsService {
             user.getId(),
             user.getEmail()
         );
+    }
+    
+    private com.example.authserver.tenant.TenantEntity createTenantEntity(Long tenantId) {
+        var tenant = new com.example.authserver.tenant.TenantEntity();
+        tenant.setId(tenantId);
+        return tenant;
     }
     
     // Enhanced UserDetails class to carry additional user information
