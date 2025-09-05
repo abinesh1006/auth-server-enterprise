@@ -16,6 +16,7 @@ import java.io.IOException;
 public class TenantResolverFilter extends OncePerRequestFilter {
     
     private static final Logger logger = LoggerFactory.getLogger(TenantResolverFilter.class);
+    private static final String TENANT_HEADER = "X-Tenant-ID";
     
     private final TenantRepository tenantRepository;
     
@@ -27,72 +28,80 @@ public class TenantResolverFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         
-        logger.info("=== TENANT RESOLVER FILTER STARTING ===");
-        logger.info("Request URI: {}", request.getRequestURI());
-        logger.info("Request method: {}", request.getMethod());
+        String correlationId = java.util.UUID.randomUUID().toString().substring(0, 8);
+        String tenantId = request.getHeader(TENANT_HEADER);
+        String requestUri = request.getRequestURI();
         
-        String host = request.getServerName();
-        logger.info("Server name (host): {}", host);
+        logger.debug("Processing tenant resolution [tenantId={}, uri={}, correlationId={}]", 
+                    tenantId, requestUri, correlationId);
         
+        try {
+            resolveTenant(tenantId, correlationId);
+            chain.doFilter(request, response);
+        } finally {
+            logger.debug("Clearing tenant context [correlationId={}]", correlationId);
+            TenantContext.clear();
+        }
+    }
+    
+    private void resolveTenant(String tenantId, String correlationId) {
         // Check if there are any tenants in the database
         long tenantCount = tenantRepository.count();
-        logger.info("Total tenants in database: {}", tenantCount);
         
         if (tenantCount == 0) {
-            logger.warn("=== NO TENANTS FOUND IN DATABASE ===");
-            logger.warn("Creating default tenant context since no tenants exist");
-            
-            // Set a default tenant context when no tenants exist
-            TenantContext.set(new TenantContext.TenantInfo(1l, "default", host, false));
-            logger.info("Set default tenant context: {}", TenantContext.get());
-        } else {
-            logger.info("Looking up tenant by domain: {}", host);
-            var tenant = tenantRepository.findByDomain(host).orElse(null);
-            
-            if (tenant != null) {
-                logger.info("=== TENANT FOUND ===");
-                logger.info("Tenant ID: {}", tenant.getId());
-                logger.info("Tenant Key: {}", tenant.getTenantKey());
-                logger.info("Tenant Domain: {}", tenant.getDomain());
-                logger.info("MFA Enabled: {}", tenant.getIsMfaEnabled());
-                
-                TenantContext.set(new TenantContext.TenantInfo(
-                    tenant.getId(),  // This is already Long from the entity
-                    tenant.getTenantKey(), 
-                    tenant.getDomain(), 
-                    Boolean.TRUE.equals(tenant.getIsMfaEnabled())
-                ));
-                logger.info("Set tenant context: {}", TenantContext.get());
-            } else {
-                logger.warn("=== NO TENANT FOUND FOR DOMAIN ===");
-                logger.warn("No tenant found for domain: {}", host);
-                logger.warn("Available tenants:");
-                
-                // Log all available tenants for debugging
-                var allTenants = tenantRepository.findAll();
-                allTenants.forEach(t -> logger.warn("  - Tenant: {} (domain: {})", t.getTenantKey(), t.getDomain()));
-                
-                if (allTenants.isEmpty()) {
-                    logger.warn("No tenants exist in database at all");
-                } else {
-                    logger.warn("Consider creating a tenant for domain '{}' or using one of the existing domains", host);
-                }
-                
-                // Set a fallback tenant context
-                logger.info("Setting fallback default tenant context");
-                TenantContext.set(new TenantContext.TenantInfo(2l, "default", host, false));
-                logger.info("Fallback tenant context set: {}", TenantContext.get());
-            }
+            logger.warn("No tenants found in database, using default tenant [correlationId={}]", correlationId);
+            setDefaultTenant();
+            return;
         }
         
-        logger.info("Final tenant context before proceeding: {}", TenantContext.get());
-        logger.info("=== TENANT RESOLVER FILTER COMPLETED ===");
+        if (tenantId == null || tenantId.trim().isEmpty()) {
+            logger.warn("Missing {} header, using default tenant [correlationId={}]", TENANT_HEADER, correlationId);
+            setDefaultTenant();
+            return;
+        }
         
-        try { 
-            chain.doFilter(request, response); 
-        } finally { 
-            logger.debug("Clearing tenant context");
-            TenantContext.clear(); 
+        // Look up tenant by tenant key
+        var tenant = tenantRepository.findByTenantKey(tenantId.trim()).orElse(null);
+        
+        if (tenant != null) {
+            logger.debug("Tenant resolved successfully [tenantId={}, domain={}, mfaEnabled={}, correlationId={}]", 
+                        tenant.getTenantKey(), tenant.getDomain(), tenant.getIsMfaEnabled(), correlationId);
+            
+            TenantContext.set(new TenantContext.TenantInfo(
+                tenant.getId(),
+                tenant.getTenantKey(), 
+                tenant.getDomain(), 
+                Boolean.TRUE.equals(tenant.getIsMfaEnabled())
+            ));
+        } else {
+            logger.warn("Unknown tenant [tenantId={}, correlationId={}]", tenantId, correlationId);
+            logAvailableTenants(correlationId);
+            
+            // Reject request for unknown tenant
+            throw new TenantNotFoundException("Unknown tenant: " + tenantId);
+        }
+    }
+    
+    private void setDefaultTenant() {
+        TenantContext.set(new TenantContext.TenantInfo(1L, "default", "localhost", false));
+        logger.debug("Default tenant context set: {}", TenantContext.get());
+    }
+    
+    private void logAvailableTenants(String correlationId) {
+        var allTenants = tenantRepository.findAll();
+        if (allTenants.isEmpty()) {
+            logger.warn("No tenants exist in database [correlationId={}]", correlationId);
+        } else {
+            logger.debug("Available tenants [correlationId={}]:", correlationId);
+            allTenants.forEach(t -> 
+                logger.debug("  - Tenant: {} (domain: {}) [correlationId={}]", 
+                            t.getTenantKey(), t.getDomain(), correlationId));
+        }
+    }
+    
+    public static class TenantNotFoundException extends RuntimeException {
+        public TenantNotFoundException(String message) {
+            super(message);
         }
     }
 }

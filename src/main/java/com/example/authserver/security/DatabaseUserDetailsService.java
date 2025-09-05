@@ -30,7 +30,7 @@ public class DatabaseUserDetailsService implements UserDetailsService {
         var tenantInfo = TenantContext.get();
         var tenant = tenantInfo == null ? null : tenants.findById(tenantInfo.id()).orElse(null);
 
-        var authorities = userRoles.findByUserAndTenant(user, tenant).stream()
+        var authorities = userRoles.findByUserAndTenantWithRole(user, tenant).stream()
                 .map(ur -> new SimpleGrantedAuthority(ur.getRole().getRole()))
                 .collect(Collectors.toSet());
 

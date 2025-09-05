@@ -64,6 +64,10 @@ public class SecurityConfig {
         
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
             .oidc(Customizer.withDefaults())
+            .clientAuthentication(clientAuth -> clientAuth
+                .authenticationConverter(new org.springframework.security.oauth2.server.authorization.web.authentication.ClientSecretPostAuthenticationConverter())
+                .authenticationConverter(new org.springframework.security.oauth2.server.authorization.web.authentication.ClientSecretBasicAuthenticationConverter())
+            )
             .tokenEndpoint(token -> token
                 .accessTokenRequestConverter(new PasswordAuthenticationConverter())
                 .authenticationProvider(new PasswordAuthenticationProvider(authenticationManager, authorizationService, tokenGenerator, mfaService))
