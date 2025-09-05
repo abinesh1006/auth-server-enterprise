@@ -1,5 +1,7 @@
 package com.example.authserver.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,6 +17,8 @@ import java.util.UUID;
 @Configuration
 public class SwaggerClientConfig {
 
+    private static final Logger logger = LoggerFactory.getLogger(SwaggerClientConfig.class);
+
     @Bean
     public CommandLineRunner initSwaggerClient(RegisteredClientRepository clientRepository) {
         return args -> {
@@ -22,11 +26,11 @@ public class SwaggerClientConfig {
             try {
                 RegisteredClient existingClient = clientRepository.findByClientId("swagger-ui");
                 if (existingClient != null) {
-                    System.out.println("Swagger UI OAuth2 client already exists");
+                    logger.info("Swagger UI OAuth2 client already exists [clientId=swagger-ui]");
                     return;
                 }
             } catch (Exception e) {
-                // Client doesn't exist, will create it below
+                logger.debug("Swagger UI client not found, will create new one [error={}]", e.getMessage());
             }
 
             // Create PKCE-enabled public client for Swagger UI
@@ -55,7 +59,7 @@ public class SwaggerClientConfig {
                 .build();
 
             clientRepository.save(swaggerClient);
-            System.out.println("Created PKCE-enabled Swagger UI OAuth2 client with ID: swagger-ui");
+            logger.info("Created PKCE-enabled Swagger UI OAuth2 client [clientId=swagger-ui]");
         };
     }
 }

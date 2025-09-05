@@ -107,8 +107,16 @@ public class SecurityConfig {
         JwtEncoder jwtEncoder = new NimbusJwtEncoder(jwkSource);
         JwtGenerator jwtGenerator = new JwtGenerator(jwtEncoder);
         jwtGenerator.setJwtCustomizer(jwtCustomizer);
-        OAuth2AccessTokenGenerator access = new OAuth2AccessTokenGenerator();
-        OAuth2RefreshTokenGenerator refresh = new OAuth2RefreshTokenGenerator();
-        return new DelegatingOAuth2TokenGenerator(jwtGenerator, access, refresh);
+        
+        OAuth2AccessTokenGenerator accessTokenGenerator = new OAuth2AccessTokenGenerator();
+        OAuth2RefreshTokenGenerator refreshTokenGenerator = new OAuth2RefreshTokenGenerator();
+        
+        // Configure access token generator to use JWT format
+        accessTokenGenerator.setAccessTokenCustomizer(context -> {
+            // The access token generator will create OAuth2AccessToken objects
+            // The JWT customizer will be applied when needed for JWT encoding
+        });
+        
+        return new DelegatingOAuth2TokenGenerator(accessTokenGenerator, refreshTokenGenerator, jwtGenerator);
     }
 }

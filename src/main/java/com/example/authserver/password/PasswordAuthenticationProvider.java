@@ -18,6 +18,7 @@ import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.core.OAuth2Token;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AccessTokenAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
@@ -49,55 +50,52 @@ public class PasswordAuthenticationProvider implements org.springframework.secur
 
     @Override
     public Authentication authenticate(Authentication authentication) {
-        logger.info("=== PASSWORD AUTHENTICATION PROVIDER STARTING ===");
+        String correlationId = java.util.UUID.randomUUID().toString().substring(0, 8);
+        logger.debug("Starting password authentication process [correlationId={}]", correlationId);
         
         try {
             PasswordAuthenticationToken request = (PasswordAuthenticationToken) authentication;
             OAuth2ClientAuthenticationToken clientAuth = (OAuth2ClientAuthenticationToken) request.getPrincipal();
             RegisteredClient client = clientAuth.getRegisteredClient();
             
-            logger.info("Client ID: {}", client != null ? client.getClientId() : "NULL");
-            logger.info("Username: {}", request.getUsername());
-            logger.info("Tenant context at start: {}", TenantContext.get());
+            String clientId = client != null ? client.getClientId() : "unknown";
+            String username = request.getUsername();
+            TenantContext.TenantInfo tenantInfo = TenantContext.get();
+            String tenant = tenantInfo != null ? tenantInfo.key() : null;
+            
+            logger.info("Authenticating user [username={}, clientId={}, tenant={}, correlationId={}]", 
+                       username, clientId, tenant, correlationId);
             
             if (client == null || client.getAuthorizationGrantTypes().stream().noneMatch(gt -> gt.getValue().equals(PasswordGrantType.GRANT_TYPE))) {
-                logger.error("Client does not support password grant type");
-                logger.error("Client: {}", client);
-                logger.error("Supported grant types: {}", client != null ? client.getAuthorizationGrantTypes() : "NULL");
+                logger.warn("Client does not support password grant type [clientId={}, grantTypes={}, correlationId={}]", 
+                           clientId, client != null ? client.getAuthorizationGrantTypes() : "null", correlationId);
                 throw new OAuth2AuthenticationException(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT);
             }
 
-            logger.info("=== CALLING AUTHENTICATION MANAGER ===");
-            logger.info("About to authenticate user: {} with AuthenticationManager", request.getUsername());
-            logger.info("Tenant context before user auth: {}", TenantContext.get());
+            logger.debug("Delegating to authentication manager [username={}, correlationId={}]", username, correlationId);
             
             Authentication userAuth = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
             );
             
-            logger.info("=== USER AUTHENTICATION COMPLETED ===");
-            logger.info("User authenticated successfully: {}", userAuth.isAuthenticated());
-            logger.info("User principal: {}", userAuth.getPrincipal());
-            logger.info("User authorities: {}", userAuth.getAuthorities());
-            logger.info("Tenant context after user auth: {}", TenantContext.get());
+            logger.debug("User authentication completed [username={}, authenticated={}, authorities={}, correlationId={}]", 
+                        username, userAuth.isAuthenticated(), userAuth.getAuthorities().size(), correlationId);
 
-            var tenant = TenantContext.get();
-            boolean mfaRequired = tenant != null && tenant.equals("tenant-with-mfa-enabled"); // Adjust this logic
-            logger.info("MFA required: {}, Tenant: {}", mfaRequired, tenant);
+            boolean mfaRequired = tenantInfo != null && tenantInfo.mfaEnabled();
             
             if (mfaRequired) {
+                logger.debug("MFA verification required [username={}, tenant={}, correlationId={}]", username, tenant, correlationId);
                 if (request.getMfaCode() == null || !mfaService.verify(request.getUsername(), request.getMfaCode())) {
-                    logger.error("MFA verification failed for user: {}", request.getUsername());
+                    logger.warn("MFA verification failed [username={}, correlationId={}]", username, correlationId);
                     throw new OAuth2AuthenticationException(new OAuth2Error("mfa_required", "MFA required or invalid", null));
                 }
-                logger.info("MFA verification successful for user: {}", request.getUsername());
+                logger.debug("MFA verification successful [username={}, correlationId={}]", username, correlationId);
             }
 
             Set<String> authorizedScopes = request.getScopes().isEmpty() ? client.getScopes()
                     : request.getScopes().stream().filter(client.getScopes()::contains).collect(Collectors.toSet());
 
-            logger.info("Authorized scopes: {}", authorizedScopes);
-            logger.info("Tenant context before token generation: {}", TenantContext.get());
+            logger.debug("Scope authorization completed [authorizedScopes={}, correlationId={}]", authorizedScopes, correlationId);
 
             DefaultOAuth2TokenContext.Builder tokenContext = DefaultOAuth2TokenContext.builder()
                     .registeredClient(client).principal(userAuth)
@@ -106,32 +104,52 @@ public class PasswordAuthenticationProvider implements org.springframework.secur
                     .authorizationGrantType(new AuthorizationGrantType(PasswordGrantType.GRANT_TYPE))
                     .authorizationGrant(request);
 
-            logger.info("=== GENERATING ACCESS TOKEN ===");
-            DefaultOAuth2TokenContext accessTokenContext = tokenContext.build();
-            OAuth2AccessToken access = (OAuth2AccessToken) tokenGenerator.generate(accessTokenContext);
+            logger.debug("Generating access token [correlationId={}]", correlationId);
+            DefaultOAuth2TokenContext accessTokenContext = tokenContext
+                    .tokenType(OAuth2TokenType.ACCESS_TOKEN)
+                    .build();
+            OAuth2Token generatedToken = tokenGenerator.generate(accessTokenContext);
             
-            if (access == null) {
-                logger.error("=== ACCESS TOKEN IS NULL ===");
-                logger.error("TokenGenerator returned null for access token");
-                logger.error("Token context: {}", accessTokenContext);
-                logger.error("Tenant context: {}", TenantContext.get());
+            if (generatedToken == null) {
+                logger.error("Access token generation failed - token generator returned null [correlationId={}]", correlationId);
                 throw new OAuth2AuthenticationException(new OAuth2Error("server_error", "Failed to generate access token", null));
             }
             
-            logger.info("Access token generated successfully: {}", access.getTokenValue().substring(0, 20) + "...");
+            OAuth2AccessToken access;
+            if (generatedToken instanceof OAuth2AccessToken) {
+                access = (OAuth2AccessToken) generatedToken;
+            } else if (generatedToken instanceof org.springframework.security.oauth2.jwt.Jwt) {
+                // Handle JWT case - convert to OAuth2AccessToken
+                org.springframework.security.oauth2.jwt.Jwt jwt = (org.springframework.security.oauth2.jwt.Jwt) generatedToken;
+                access = new OAuth2AccessToken(
+                    OAuth2AccessToken.TokenType.BEARER,
+                    jwt.getTokenValue(),
+                    jwt.getIssuedAt(),
+                    jwt.getExpiresAt(),
+                    authorizedScopes
+                );
+                logger.debug("Converted JWT to OAuth2AccessToken [correlationId={}]", correlationId);
+            } else {
+                logger.error("Unexpected token type generated [tokenType={}, correlationId={}]", 
+                           generatedToken.getClass().getSimpleName(), correlationId);
+                throw new OAuth2AuthenticationException(new OAuth2Error("server_error", "Unexpected token type generated", null));
+            }
+            
+            logger.debug("Access token generated successfully [correlationId={}]", correlationId);
 
-            logger.info("=== GENERATING REFRESH TOKEN ===");
-            DefaultOAuth2TokenContext refreshTokenContext = tokenContext.build();
+            logger.debug("Generating refresh token [correlationId={}]", correlationId);
+            DefaultOAuth2TokenContext refreshTokenContext = tokenContext
+                    .tokenType(OAuth2TokenType.REFRESH_TOKEN)
+                    .build();
             OAuth2RefreshToken refresh = (OAuth2RefreshToken) tokenGenerator.generate(refreshTokenContext);
             
             if (refresh == null) {
-                logger.warn("Refresh token is null - this might be expected based on client configuration");
+                logger.debug("Refresh token not generated - may be disabled for client [clientId={}, correlationId={}]", clientId, correlationId);
             } else {
-                logger.info("Refresh token generated successfully");
+                logger.debug("Refresh token generated successfully [correlationId={}]", correlationId);
             }
 
-            logger.info("=== SAVING AUTHORIZATION ===");
-            logger.info("Tenant context before saving authorization: {}", TenantContext.get());
+            logger.debug("Persisting OAuth2 authorization [correlationId={}]", correlationId);
             
             OAuth2Authorization.Builder authorizationBuilder = OAuth2Authorization.withRegisteredClient(client)
                     .principalName(userAuth.getName())
@@ -146,17 +164,14 @@ public class PasswordAuthenticationProvider implements org.springframework.secur
             OAuth2Authorization authorization = authorizationBuilder.build();
             authorizationService.save(authorization);
             
-            logger.info("Authorization saved successfully");
-            logger.info("=== PASSWORD AUTHENTICATION PROVIDER COMPLETED SUCCESSFULLY ===");
+            logger.info("Password authentication completed successfully [username={}, clientId={}, scopes={}, correlationId={}]", 
+                       username, clientId, authorizedScopes, correlationId);
 
             return new OAuth2AccessTokenAuthenticationToken(client, clientAuth, access, refresh, Map.of());
             
         } catch (Exception e) {
-            logger.error("=== CRITICAL ERROR IN PASSWORD AUTHENTICATION PROVIDER ===");
-            logger.error("Error type: {}", e.getClass().getSimpleName());
-            logger.error("Error message: {}", e.getMessage());
-            logger.error("Tenant context at error: {}", TenantContext.get());
-            logger.error("Full stack trace:", e);
+            logger.error("Password authentication failed [correlationId={}, errorType={}, message={}]", 
+                        correlationId, e.getClass().getSimpleName(), e.getMessage(), e);
             
             if (e instanceof OAuth2AuthenticationException) {
                 throw e; // Re-throw OAuth2 exceptions as-is
