@@ -22,14 +22,14 @@ public class AdminTenantController {
     @PostMapping
     @Operation(summary = "Create tenant")
     public TenantEntity create(@RequestBody TenantDto dto) {
-        return service.create(dto.tenantKey(), dto.domain(), dto.mfaEnabled(), dto.owner());
+        return service.create(dto.tenantKey(), dto.domain(), dto.owner());
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("@rbacService.hasAccess('tenant:update', authentication)")
     @Operation(summary = "Update tenant")
     public TenantEntity update(@PathVariable Long id, @RequestBody TenantDto dto) {
-        return service.update(id, dto.tenantKey(), dto.domain(), dto.mfaEnabled(), dto.owner());
+        return service.update(id, dto.tenantKey(), dto.domain(), dto.owner());
     }
 
     @GetMapping("/{id}")

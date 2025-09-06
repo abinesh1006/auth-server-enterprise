@@ -12,15 +12,13 @@ public class PasswordAuthenticationToken extends OAuth2AuthorizationGrantAuthent
 	private final String username;
 	private final String password;
 	private final Set<String> scopes;
-	private final String mfaCode;
 
 	public PasswordAuthenticationToken(Authentication clientPrincipal, String username, String password,
-			Set<String> scopes, String mfaCode, Map<String, Object> addl) {
+			Set<String> scopes, Map<String, Object> addl) {
 		super(new AuthorizationGrantType(PasswordGrantType.GRANT_TYPE), clientPrincipal, addl);
 		this.username = username;
 		this.password = password;
 		this.scopes = scopes;
-		this.mfaCode = mfaCode;
 	}
 
 	public String getUsername() {
@@ -33,9 +31,5 @@ public class PasswordAuthenticationToken extends OAuth2AuthorizationGrantAuthent
 
 	public Set<String> getScopes() {
 		return scopes;
-	}
-
-	public String getMfaCode() {
-		return mfaCode;
 	}
 }

@@ -20,7 +20,11 @@ public class UserEntity {
     @Column(unique = true, nullable = false) private String username;
     @Column(unique = true, nullable = false) private String email;
     @Column(nullable = false) private String password;
-
+    @Column(nullable = false) private String fullName;
+    private String firstName;
+    private String lastName;
+    private Double ratePerHour;
+    private String profileFileName;
     private LocalDateTime passwordUpdateDate;
     private String passwordToken;
     private LocalDateTime passwordTokenExpiry;

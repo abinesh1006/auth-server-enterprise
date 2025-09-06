@@ -16,8 +16,5 @@ public class TenantEntity {
     @Column(unique = true, nullable = false)
     private String domain;
 
-    @Column(name="is_mfa_enabled")
-    private Boolean isMfaEnabled = Boolean.FALSE;
-
     private String owner;
 }

@@ -28,7 +28,6 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import com.example.authserver.client.DbRegisteredClientRepository;
 import com.example.authserver.keys.JwkService;
-import com.example.authserver.mfa.MfaService;
 import com.example.authserver.password.PasswordAuthenticationConverter;
 import com.example.authserver.password.PasswordAuthenticationProvider;
 import com.example.authserver.tenant.TenantResolverFilter;
@@ -57,8 +56,7 @@ public class SecurityConfig {
     public SecurityFilterChain authServerChain(HttpSecurity http,
                                                AuthenticationManager authenticationManager,
                                                org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService authorizationService,
-                                               OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator,
-                                               MfaService mfaService) throws Exception {
+                                               OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator) throws Exception {
 
         // Apply OAuth2 Authorization Server default security first
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
@@ -75,7 +73,7 @@ public class SecurityConfig {
             )
             .tokenEndpoint(token -> token
                 .accessTokenRequestConverter(new PasswordAuthenticationConverter())
-                .authenticationProvider(new PasswordAuthenticationProvider(authenticationManager, authorizationService, tokenGenerator, mfaService))
+                .authenticationProvider(new PasswordAuthenticationProvider(authenticationManager, authorizationService, tokenGenerator))
             );
 
         // Configure OAuth2 resource server and other settings

@@ -4,6 +4,7 @@ S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authser
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\api\dto\ClientDto.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\api\dto\TenantDto.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\api\dto\UserDto.java
+S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\api\OAuth2ExamplesController.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\api\UserController.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\AuthServerApplication.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\client\ClientAuthMethodEntity.java
@@ -17,6 +18,10 @@ S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authser
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\client\DbRegisteredClientRepository.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\common\CommaStringSetConverter.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\config\ApplicationShutdownConfig.java
+S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\config\AuthorizationServerConfig.java
+S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\config\BootstrapConfig.java
+S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\config\CacheConfig.java
+S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\config\CommonHeaders.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\config\JpaConfig.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\config\JwtTokenCustomizer.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\config\SwaggerClientConfig.java
@@ -29,6 +34,7 @@ S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authser
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\mfa\TotpService.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\mfa\UserMfaEntity.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\mfa\UserMfaRepository.java
+S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\oidc\OidcProviderConfigurationController.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\password\PasswordAuthenticationConverter.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\password\PasswordAuthenticationProvider.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\password\PasswordAuthenticationToken.java
@@ -44,6 +50,7 @@ S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authser
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\security\SecurityConfig.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\tenant\TenantContext.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\tenant\TenantEntity.java
+S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\tenant\TenantExceptionHandler.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\tenant\TenantRepository.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\tenant\TenantResolverFilter.java
 S:\authentication\auth-server-enterprise-admin\src\main\java\com\example\authserver\tenant\TenantService.java

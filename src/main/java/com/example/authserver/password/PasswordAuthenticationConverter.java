@@ -19,11 +19,10 @@ public class PasswordAuthenticationConverter implements AuthenticationConverter 
         String username = request.getParameter("username");
         String password = request.getParameter("password");
         String scope = request.getParameter(OAuth2ParameterNames.SCOPE);
-        String mfa = request.getParameter("mfa_code");
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_REQUEST);
         Set<String> scopes = new HashSet<>(); if (StringUtils.hasText(scope)) scopes.addAll(Arrays.asList(scope.split(" ")));
         Authentication clientPrincipal = (Authentication) request.getUserPrincipal();
         if (!(clientPrincipal instanceof OAuth2ClientAuthenticationToken)) throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_CLIENT);
-        return new PasswordAuthenticationToken(clientPrincipal, username, password, scopes, mfa, Map.of("username", username));
+        return new PasswordAuthenticationToken(clientPrincipal, username, password, scopes, Map.of("username", username));
     }
 }

@@ -12,21 +12,19 @@ public class TenantService {
     public TenantService(TenantRepository repo) { this.repo = repo; }
 
     @Transactional
-    public TenantEntity create(String key, String domain, Boolean mfaEnabled, String owner) {
+    public TenantEntity create(String key, String domain, String owner) {
         TenantEntity t = new TenantEntity();
         t.setTenantKey(key);
         t.setDomain(domain);
-        t.setIsMfaEnabled(Boolean.TRUE.equals(mfaEnabled));
         t.setOwner(owner);
         return repo.save(t);
     }
 
     @Transactional
-    public TenantEntity update(Long id, String key, String domain, Boolean mfaEnabled, String owner) {
+    public TenantEntity update(Long id, String key, String domain, String owner) {
         TenantEntity t = repo.findById(id).orElseThrow();
         if (key != null) t.setTenantKey(key);
         if (domain != null) t.setDomain(domain);
-        if (mfaEnabled != null) t.setIsMfaEnabled(mfaEnabled);
         if (owner != null) t.setOwner(owner);
         return repo.save(t);
     }

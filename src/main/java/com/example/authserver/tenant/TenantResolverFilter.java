@@ -130,15 +130,14 @@ public class TenantResolverFilter extends OncePerRequestFilter {
             TenantContext.TenantInfo tenantInfo = new TenantContext.TenantInfo(
                 tenant.getId(),
                 tenant.getTenantKey(), 
-                tenant.getDomain(), 
-                Boolean.TRUE.equals(tenant.getIsMfaEnabled())
+                tenant.getDomain()
             );
             
             // Cache the result for future requests
             tenantCache.put(trimmedTenantId, tenantInfo);
             
-            logger.debug("Tenant resolved and cached [tenantId={}, domain={}, mfaEnabled={}, correlationId={}]", 
-                        tenant.getTenantKey(), tenant.getDomain(), tenant.getIsMfaEnabled(), correlationId);
+            logger.debug("Tenant resolved and cached [tenantId={}, domain={}, correlationId={}]", 
+                        tenant.getTenantKey(), tenant.getDomain(), correlationId);
             
             TenantContext.set(tenantInfo);
         } else {
@@ -151,7 +150,7 @@ public class TenantResolverFilter extends OncePerRequestFilter {
     }
     
     private void setDefaultTenant() {
-        TenantContext.set(new TenantContext.TenantInfo(1L, "default", "localhost", false));
+        TenantContext.set(new TenantContext.TenantInfo(1L, "default", "localhost"));
         logger.debug("Default tenant context set: {}", TenantContext.get());
     }
     

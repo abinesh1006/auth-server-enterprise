@@ -26,7 +26,6 @@ import org.springframework.security.oauth2.server.authorization.context.Authoriz
 import org.springframework.security.oauth2.server.authorization.token.DefaultOAuth2TokenContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 
-import com.example.authserver.mfa.MfaService;
 import com.example.authserver.tenant.TenantContext;
 
 public class PasswordAuthenticationProvider implements org.springframework.security.authentication.AuthenticationProvider {
@@ -36,16 +35,13 @@ public class PasswordAuthenticationProvider implements org.springframework.secur
     private final AuthenticationManager authenticationManager;
     private final OAuth2AuthorizationService authorizationService;
     private final OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator;
-    private final MfaService mfaService;
 
     public PasswordAuthenticationProvider(AuthenticationManager authenticationManager,
                                           OAuth2AuthorizationService authorizationService,
-                                          OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator,
-                                          MfaService mfaService) {
+                                          OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator) {
         this.authenticationManager = authenticationManager;
         this.authorizationService = authorizationService;
         this.tokenGenerator = tokenGenerator;
-        this.mfaService = mfaService;
     }
 
     @Override
@@ -80,17 +76,6 @@ public class PasswordAuthenticationProvider implements org.springframework.secur
             
             logger.debug("User authentication completed [username={}, authenticated={}, authorities={}, correlationId={}]", 
                         username, userAuth.isAuthenticated(), userAuth.getAuthorities().size(), correlationId);
-
-            boolean mfaRequired = tenantInfo != null && tenantInfo.mfaEnabled();
-            
-            if (mfaRequired) {
-                logger.debug("MFA verification required [username={}, tenant={}, correlationId={}]", username, tenant, correlationId);
-                if (request.getMfaCode() == null || !mfaService.verify(request.getUsername(), request.getMfaCode())) {
-                    logger.warn("MFA verification failed [username={}, correlationId={}]", username, correlationId);
-                    throw new OAuth2AuthenticationException(new OAuth2Error("mfa_required", "MFA required or invalid", null));
-                }
-                logger.debug("MFA verification successful [username={}, correlationId={}]", username, correlationId);
-            }
 
             Set<String> authorizedScopes = request.getScopes().isEmpty() ? client.getScopes()
                     : request.getScopes().stream().filter(client.getScopes()::contains).collect(Collectors.toSet());
